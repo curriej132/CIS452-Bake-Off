@@ -8,34 +8,36 @@
 #include <sys/stat.h>  
 
 
-#define RESOURCE_CT 6
-#define RECIPE_CT 5
+#define RESOURCE_CT 6 // The number of resources available in the program
+#define RECIPE_CT 5  //  The number of recipes available in the program
 
+// Constant values used to represent the different resources
 #define MIXER_R 0
-#define PANTRY_R 1
+#define PANTRY_Resource 1
 #define REFER_R 2
 #define BOWL_R 3
 #define SPOON_R 4
 #define OVEN_R 5
 
-sem_t *sems[RESOURCE_CT]; // one semaphore per resource
+sem_t *sems[RESOURCE_CT]; // An array of pointers to semaphores, one for each resource 
 
 struct res{ // parallel array to sems
-  int ct;
+  int ct;   
   char * name ;
-} res_arr[] = { { 2, "Mixer" }, 
+} res_arr[] = { { 2, "Mixer" },     // An array of structures that represents the resources, including the number of available resources and a name for each resource
                 { 1, "Pantry" },
                 { 2, "Refrigerator" },
                 { 3, "Bowl" },
                 { 5, "Spoon" },
                 { 1, "Oven" } } ;
 
-struct recipe {
+struct recipe {          // A structure that represents recipe, including the name of the recipe, the pantry ingredients and their counts, the refrigerator ingredients and their counts
   char * name ;
-  char * p_ingr[5];
-  char p_ct ;
-  char * r_ingr[3];
-  char r_ct ;
+  char * p_ingr[5];    // Pantry Ingredients
+  char p_ct ;         //  Pantry count
+  char * r_ingr[3];  // refrigerator Ingredients
+  char r_ct ;       // refrigerator count
+
 } recipes[] = { { "Cookies", { "Flour", "Sugar" }, 2, { "Milk", "Butter" }, 2 },
                  { "Pancakes", { "Flour", "Sugar", "Baking soda", "Salt" }, 4, { "Egg", "Milk", "Butter" }, 3 }, 
                  { "Homemade pizza dough", { "Yeast", "sugar", "salt" }, 3, { }, 0 },
@@ -67,11 +69,11 @@ void release( int n, int res ){
 void pantry( int n, int rec ){
   int i;
   
-  if ( ! recipes[rec].p_ct ){
+  if ( ! recipes[rec].p_ct ){  //checks if the pantry count for the specified recipe is zero
     return ;
   }
   
-  get( n, PANTRY_R );
+  get( n, PANTRY_Resource ); // to acquire the PANTRY_Resource semaphore
   
   for ( i = 0 ; i < recipes[rec].p_ct ; i++ ){
     printf( "Baker %d gets %s.\n", n, recipes[rec].p_ingr[i] );
@@ -79,17 +81,17 @@ void pantry( int n, int rec ){
   
   sleep( 1 );
   
-  release( n, PANTRY_R );
+  release( n, PANTRY_Resource );
 }
 
-void refer( int n, int rec ){
+void refer( int n, int rec ){ // checks if the refrigerator count for the specified recipe is zero.
   int i;
   
   if ( ! recipes[rec].r_ct ){
     return ;
   }
   
-  get( n, REFER_R );
+  get( n, REFER_R ); //  to acquire the REFER_R semaphore,
   
   for ( i = 0 ; i < recipes[rec].r_ct ; i++ ){
     printf( "Baker %d gets %s.\n", n, recipes[rec].r_ingr[i] );
@@ -101,7 +103,7 @@ void refer( int n, int rec ){
 }    
   
 void bake( int n, int rec ){
-  printf( "Baker %d Begins baking %s.\n", n, recipes[rec].name );  
+  printf( "Baker %d Begins baking %s.\n", n, recipes[rec].name );  //  indicating that the baker has begun baking the specified recipe
   get( n, BOWL_R); // get bowl
   get( n, SPOON_R ); // get spoon
   pantry( n, rec );
@@ -154,7 +156,7 @@ int main(){
     return 1;
   }
   
-  if ( !(ptt = calloc( bakers, sizeof( pthread_t )))){
+  if ( !(ptt = calloc( bakers, sizeof( pthread_t )))){ // allocate an array of n integers, each of size sizeof(pthread_t) bytes. 
     perror( "calloc bakers" );
     return 1;
   }

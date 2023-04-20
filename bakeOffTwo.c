@@ -112,10 +112,18 @@ int bake( int n, int rec ){
   release( n, BOWL_R );
   release( n, SPOON_R );
 
-  if (n == 0 && (time(NULL) & 1)){ // baker 0 has 50% chance of starting over
+  //if (n == 0 && (time(NULL) & 1)){ // baker 0 has 50% chance of starting over
+  // printf("Baker %d is Ramsied.\n\n", n);
+    //return 0;
+  //}
+
+  srand(time(NULL)); // Seed the random number generator with the current time
+
+  if (n == 0 && rand() % 2 == 1) { // 50% chance of starting over
     printf("Baker %d is Ramsied.\n\n", n);
     return 0;
   }
+
   get( n, OVEN_R );
   sleep ( 10 );
   release( n, OVEN_R );
@@ -138,7 +146,7 @@ void * baker( void * a ){
 }
 
 int main(){
-  int j ;
+  //int j ;
   long bakers = -1L, i ;
   pthread_t * ptt ;
   
@@ -182,8 +190,8 @@ int main(){
     pthread_join( ptt[--i], NULL );
   }
   
-  free( ptt ); // unnecessary but nice
-  ptt = NULL ; // unnecessary but nice
+  free( ptt ); 
+  ptt = NULL ; 
 
   // Close and unlink the named semaphores when they're no longer needed
   for (int i = 0; i < RESOURCE_CT; i++) {
