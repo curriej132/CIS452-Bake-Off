@@ -20,7 +20,7 @@
 
 sem_t *resSems[RESOURCE_CT]; // one semaphore per resource
 
-struct res{ // parallel array to resSems
+struct Resource{ // parallel array to resSems
   int count;
   char * name ;
 } res_arr[] = { { 2, "Mixer" }, 
@@ -30,7 +30,7 @@ struct res{ // parallel array to resSems
                 { 5, "Spoon" },
                 { 1, "Oven" } } ;
 
-struct recipe {
+struct Recipe {
   char * name ;
   char * pantryIngr[5];
   char pIngrCt ;
@@ -42,7 +42,7 @@ struct recipe {
                  { "Soft Pretzels", { "Flour", "sugar", "salt", "yeast", "baking soda" }, 5, { "Egg" }, 1 },
                  { "Cinnamon rolls", { "Flour", "sugar", "salt", "cinnamon" }, 4, { "butter", "eggs" }, 2 } };
 
-void get( int n, int res ){
+void getRes( int n, int res ){
   printf( "Baker %d waiting for %s.\n", n, res_arr[res].name );
   
   if ( sem_wait( resSems[res] ) == -1){ // get resource
@@ -71,7 +71,7 @@ void pantry( int n, int rec ){
     return ;
   }
   
-  get( n, PANTRY_R );
+  getRes( n, PANTRY_R );
   
   for ( i = 0 ; i < recipes[rec].pIngrCt ; i++ ){
     printf( "Baker %d gets %s.\n", n, recipes[rec].pantryIngr[i] );
@@ -89,7 +89,7 @@ void refrigerator( int n, int rec ){
     return ;
   }
   
-  get( n, FRIDGE_R );
+  getRes( n, FRIDGE_R );
   
   for ( i = 0 ; i < recipes[rec].rIngrCt ; i++ ){
     printf( "Baker %d gets %s.\n", n, recipes[rec].refrigIngr[i] );
@@ -102,11 +102,11 @@ void refrigerator( int n, int rec ){
   
 int bake( int n, int rec ){
   printf( "Baker %d Begins baking %s.\n", n, recipes[rec].name );  
-  get( n, BOWL_R); // get bowl
-  get( n, SPOON_R ); // get spoon
+  getRes( n, BOWL_R); // get bowl
+  getRes( n, SPOON_R ); // get spoon
   pantry( n, rec );
   refrigerator( n, rec );
-  get( n, MIXER_R );
+  getRes( n, MIXER_R );
   sleep( 5 );
   release( n, MIXER_R );
   release( n, BOWL_R );
@@ -124,7 +124,7 @@ int bake( int n, int rec ){
     return 0;
   }
 
-  get( n, OVEN_R );
+  getRes( n, OVEN_R );
   sleep ( 10 );
   release( n, OVEN_R );
   printf( "Baker %d finished baking %s.\n\n", n, recipes[rec].name );

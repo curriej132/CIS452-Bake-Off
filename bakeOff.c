@@ -4,187 +4,216 @@
 #include <semaphore.h>
 #include <unistd.h>
 #include <poll.h>
-#include <fcntl.h>  
-#include <sys/stat.h>  
+#include <fcntl.h>
+#include <sys/stat.h>
 
+/* Total amount of resources and recipes*/
+#define RESOURCE_CT	6
+#define RECIPE_CT	5
 
-#define RESOURCE_CT 6 // The number of resources available in the program
-#define RECIPE_CT 5  //  The number of recipes available in the program
+/* Constant ints to represent the different resources */
+#define MIXER_R		0
+#define PANTRY_R	1
+#define FRIDGE_R	2
+#define BOWL_R		3
+#define SPOON_R		4
+#define OVEN_R		5
 
-// Constant values used to represent the different resources
-#define MIXER_R 0
-#define PANTRY_Resource 1
-#define REFER_R 2
-#define BOWL_R 3
-#define SPOON_R 4
-#define OVEN_R 5
+sem_t *resSems[RESOURCE_CT]; // Pointers to each resource semaphore
 
-sem_t *sems[RESOURCE_CT]; // An array of pointers to semaphores, one for each resource 
+typedef struct Resource
+{
+	int count;
+	char *name;
+} resource_t;
 
-struct res{ // parallel array to sems
-  int ct;   
-  char * name ;
-} res_arr[] = { { 2, "Mixer" },     // An array of structures that represents the resources, including the number of available resources and a name for each resource
-                { 1, "Pantry" },
-                { 2, "Refrigerator" },
-                { 3, "Bowl" },
-                { 5, "Spoon" },
-                { 1, "Oven" } } ;
+typedef struct Recipe
+{
+	char *name;
+	char *pantryIngr[5]; // Ingrediants from pantry
+	char pantryCt;		 // Number of pantry ingrediants
+	char *r_ingr[3];	 // Ingrediants from refridgerator
+	char r_ct;			 // Number of refridgerator ingrediants
+} recipe_t;
 
-struct recipe {          // A structure that represents recipe, including the name of the recipe, the pantry ingredients and their counts, the refrigerator ingredients and their counts
-  char * name ;
-  char * p_ingr[5];    // Pantry Ingredients
-  char p_ct ;         //  Pantry count
-  char * r_ingr[3];  // refrigerator Ingredients
-  char r_ct ;       // refrigerator count
+/* Resources structs with available amount */
+resource_t resources[] = {
+	{2, "Mixer"},
+	{1, "Pantry"},
+	{2, "Refrigerator"},
+	{3, "Bowl"},
+	{5, "Spoon"},
+	{1, "Oven"}};
 
-} recipes[] = { { "Cookies", { "Flour", "Sugar" }, 2, { "Milk", "Butter" }, 2 },
-                 { "Pancakes", { "Flour", "Sugar", "Baking soda", "Salt" }, 4, { "Egg", "Milk", "Butter" }, 3 }, 
-                 { "Homemade pizza dough", { "Yeast", "sugar", "salt" }, 3, { }, 0 },
-                 { "Soft Pretzels", { "Flour", "sugar", "salt", "yeast", "baking soda" }, 5, { "Egg" }, 1 },
-                 { "Cinnamon rolls", { "Flour", "sugar", "salt", "cinnamon" }, 4, { "butter", "eggs" }, 2 } };
+/* All recipes bakers must make */
+recipe_t recipes[] = {
+	{"Cookies", {"Flour", "Sugar"}, 2, {"Milk", "Butter"}, 2},
+	{"Pancakes", {"Flour", "Sugar", "Baking soda", "Salt"}, 4, {"Egg", "Milk", "Butter"}, 3},
+	{"Homemade pizza dough", {"Yeast", "sugar", "salt"}, 3, {}, 0},
+	{"Soft Pretzels", {"Flour", "sugar", "salt", "yeast", "baking soda"}, 5, {"Egg"}, 1},
+	{"Cinnamon rolls", {"Flour", "sugar", "salt", "cinnamon"}, 4, {"butter", "eggs"}, 2}};
 
-void get( int n, int res ){
-  printf( "Baker %d waiting for %s.\n", n, res_arr[res].name );
-  
-  if ( sem_wait( sems[res] ) == -1){ // get resource
-    perror( "sem_wait" );
-    exit( 1 );
-  }
-  
-  printf( "Baker %d got %s.\n", n, res_arr[res].name );
+void getRes(int bakerNum, int res)
+{
+	printf("Baker %d waiting for %s.\n", bakerNum, resources[res].name);
+
+	if (sem_wait(resSems[res]) == -1)
+	{ 	// getting resource
+		perror("sem_wait");
+		exit(1);
+	}
+
+	printf("Baker %d got %s.\n", bakerNum, resources[res].name);
 }
 
-void release( int n, int res ){
-  printf( "Baker %d releasing %s.\n", n, res_arr[res].name );
-  
-  if ( sem_post( sems[res] ) == -1){ // return resource
-    perror( "sem_post" );
-    exit( 1 );
-  }
-  
-  poll( 0, 0, 50 );  // 50 ms = edge of visual perception
+void release(int bakerNum, int res)
+{
+	printf("Baker %d releasing %s.\n", bakerNum, resources[res].name);
+
+	if (sem_post(resSems[res]) == -1)
+	{ 	// release resource
+		perror("sem_post");
+		exit(1);
+	}
+
+	poll(0, 0, 50); // 50 ms = edge of visual perception
 }
 
-void pantry( int n, int rec ){
-  int i;
-  
-  if ( ! recipes[rec].p_ct ){  //checks if the pantry count for the specified recipe is zero
-    return ;
-  }
-  
-  get( n, PANTRY_Resource ); // to acquire the PANTRY_Resource semaphore
-  
-  for ( i = 0 ; i < recipes[rec].p_ct ; i++ ){
-    printf( "Baker %d gets %s.\n", n, recipes[rec].p_ingr[i] );
-  }
-  
-  sleep( 1 );
-  
-  release( n, PANTRY_Resource );
+void pantry(int bakerNum, int rec)
+{
+	if (!recipes[rec].pantryCt)
+	{ 	// checks if the specified recipe has no pantry ingrediants
+		return;
+	}
+
+	getRes(bakerNum, PANTRY_R);
+
+	for (int i = 0; i < recipes[rec].pantryCt; i++)
+	{
+		printf("Baker %d gets %s.\n", bakerNum, recipes[rec].pantryIngr[i]);
+	}
+
+	sleep(1);
+
+	release(bakerNum, PANTRY_R);
 }
 
-void refer( int n, int rec ){ // checks if the refrigerator count for the specified recipe is zero.
-  int i;
-  
-  if ( ! recipes[rec].r_ct ){
-    return ;
-  }
-  
-  get( n, REFER_R ); //  to acquire the REFER_R semaphore,
-  
-  for ( i = 0 ; i < recipes[rec].r_ct ; i++ ){
-    printf( "Baker %d gets %s.\n", n, recipes[rec].r_ingr[i] );
-  }
-  
-  sleep( 1 );
-  
-  release( n, REFER_R );
-}    
-  
-void bake( int n, int rec ){
-  printf( "Baker %d Begins baking %s.\n", n, recipes[rec].name );  //  indicating that the baker has begun baking the specified recipe
-  get( n, BOWL_R); // get bowl
-  get( n, SPOON_R ); // get spoon
-  pantry( n, rec );
-  refer( n, rec );
-  get( n, MIXER_R );
-  sleep( 5 );
-  release( n, MIXER_R );
-  release( n, BOWL_R );
-  release( n, SPOON_R );
-  get( n, OVEN_R );
-  sleep ( 10 );
-  release( n, OVEN_R );
-  printf( "Baker %d finished baking %s.\n\n", n, recipes[rec].name );
+void refer(int bakerNum, int rec)
+{ 	// checks if the specified recipe has no refridgerator ingrediants
+
+	if (!recipes[rec].r_ct)
+	{
+		return;
+	}
+
+	getRes(bakerNum, FRIDGE_R); //  to acquire the FRIDGE_R semaphore,
+
+	for (int i = 0; i < recipes[rec].r_ct; i++)
+	{
+		printf("Baker %d gets %s.\n", bakerNum, recipes[rec].r_ingr[i]);
+	}
+
+	sleep(1);
+
+	release(bakerNum, FRIDGE_R);
 }
 
-void * baker( void * a ){
-  long n = (long)a ;
-  int i;
-  
-  printf( "Baker %ld starting.\n", n );
-
-  for ( i = 0 ; i < RECIPE_CT ; i++ ){
-    bake( n, (i + n) % RECIPE_CT );
-  }
-  
-  printf( "Baker %ld done.\n", n );
-  return NULL;
+void bake(int bakerNum, int rec)
+{
+	printf("Baker %d Begins baking %s.\n", bakerNum, recipes[rec].name);
+	getRes(bakerNum, BOWL_R);
+	getRes(bakerNum, SPOON_R);
+	pantry(bakerNum, rec);
+	refer(bakerNum, rec);
+	getRes(bakerNum, MIXER_R);
+	sleep(5);
+	release(bakerNum, MIXER_R);
+	release(bakerNum, BOWL_R);
+	release(bakerNum, SPOON_R);
+	getRes(bakerNum, OVEN_R);
+	sleep(10);
+	release(bakerNum, OVEN_R);
+	printf("Baker %d finished baking %s.\n\n", bakerNum, recipes[rec].name);
 }
 
-int main(){
-  int j ;
-  long bakers = -1L, i ;
-  pthread_t * ptt ;
-  
-  for (int i = 0; i < RESOURCE_CT; i++) {
-    sem_unlink( res_arr[i].name );
-    sems[i] = sem_open( res_arr[i].name, O_CREAT | O_EXCL, 0700, res_arr[i].ct);
+void *baker(void *a)
+{
+	long bakerNum = (long)a;
 
-    if (sems[i] == SEM_FAILED) {
-        perror("sem_open");
-        return 1;
-    }
-  }
-  
-  printf( "How many bakers should I create? " );
-  scanf( "%ld", &bakers );
-  
-  if ( bakers < 1 ){
-    printf( "Invalid count %ld.\n", bakers );
-    return 1;
-  }
-  
-  if ( !(ptt = calloc( bakers, sizeof( pthread_t )))){ // allocate an array of n integers, each of size sizeof(pthread_t) bytes. 
-    perror( "calloc bakers" );
-    return 1;
-  }
-  
-  i = bakers; // make a copy for the join loop
-  
-  while ( bakers ){ // spin off all bakers
-    int e;
-    
-    bakers--;
-    
-    if ( 0 > (e = pthread_create( ptt + bakers, NULL, baker, (void *)bakers ))){
-      printf( "pthread_create returns %d\n", e );
-      return 1;
-    }
-  }
-  
-  while ( i ){ // wait for all bakers
-    pthread_join( ptt[--i], NULL );
-  }
-  
-  free( ptt ); // unnecessary but nice
-  ptt = NULL ; // unnecessary but nice
+	printf("Baker %ld starting.\n", bakerNum);
 
-  // Close and unlink the named semaphores when they're no longer needed
-  for (int i = 0; i < RESOURCE_CT; i++) {
-    sem_close(sems[i]);
-    sem_unlink( res_arr[i].name );
-  }
-  return 0;
+	for (int i = 0; i < RECIPE_CT; i++)
+	{
+		bake(bakerNum, (i + bakerNum) % RECIPE_CT);
+	}
+
+	printf("Baker %ld done.\n", bakerNum);
+	return NULL;
+}
+
+int main()
+{
+	int j;
+	long bakers, bkr;
+	pthread_t *threadPtr;
+
+	for (int i = 0; i < RESOURCE_CT; i++)
+	{
+		sem_unlink(resources[i].name);
+		resSems[i] = sem_open(resources[i].name, O_CREAT | O_EXCL, 0700, resources[i].count);
+
+		if (resSems[i] == SEM_FAILED)
+		{
+			perror("sem_open");
+			return 1;
+		}
+	}
+
+	printf("How many bakers should I create? ");
+	scanf("%ld", &bakers);
+
+	// Validate user input
+	if (bakers < 1)
+	{
+		printf("Invalid count %ld.\n", bakers);
+		return 1;
+	}
+
+	// Memory allocation for threads
+	if (!(threadPtr = calloc(bakers, sizeof(pthread_t))))
+	{
+		perror("calloc bakers");
+		return 1;
+	}
+
+	bkr = bakers;	// make a copy for the join loop
+
+	while (bakers)
+	{ 	// spin off all bakers
+		int e;
+
+		bakers--;
+
+		if (0 > (e = pthread_create(threadPtr + bakers, NULL, baker, (void *)bakers)))
+		{
+			printf("pthread_create returns %d\n", e);
+			return 1;
+		}
+	}
+
+	while (bkr)
+	{	// wait for all bakers
+		pthread_join(threadPtr[--bkr], NULL);
+	}
+
+	free(threadPtr);
+	threadPtr = NULL;
+
+	// Close and unlink the named semaphores when they're no longer needed
+	for (int i = 0; i < RESOURCE_CT; i++)
+	{
+		sem_close(resSems[i]);
+		sem_unlink(resources[i].name);
+	}
+	return 0;
 }
